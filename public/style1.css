@@ -1,0 +1,135 @@
+body {
+    background-image: url("bg.png");
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+#mainLogo {
+    width: 30%;
+    margin-top: 40px;
+}
+
+.language-switcher {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 10;
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.language-switcher button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 7px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 0.85rem;
+}
+
+.language-switcher button.is-selected {
+    border-color: #176b3a;
+    background: #e5f7eb;
+}
+
+.language-switcher img {
+    width: 28px;
+    height: 19px;
+    object-fit: cover;
+}
+
+.line {
+    background-color: black;
+    flex: 0 0 2px;
+    align-self: stretch;
+    margin: 0 10px;
+}
+#firstLine {
+    flex: 0 0 1px !important;
+    margin-top: 30px !important;
+    margin-bottom: 30px !important;
+}
+
+.main {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    min-height: 40vh;
+    height: auto;
+    width: fit-content;
+    background-color: rgba(66, 175, 212, 0.555);
+
+    margin-top: 20px;
+    padding: 20px;
+    border: 2px solid black;
+    border-radius: 20px;
+}
+.input-label {
+    margin-top: 10px;
+    text-align: start !important;
+
+    font-weight: normal !important;
+    margin: 0;
+    font-size: 14px;
+}
+.profesor-2 {
+    display: flex;
+    justify-content: center;
+    align-items: start;
+    flex-direction: column;
+}
+.main button {
+    justify-self: center;
+    margin: auto;
+    margin-top: 10px;
+}
+.profesor-2 input {
+    border: 1px solid black;
+    border-radius: 10px;
+    background-color: rgb(72, 72, 168);
+    color: white;
+    padding: 5px 8px;
+    max-width: 100%;
+}
+.profesor-2 input::placeholder {
+    color: white;
+}
+.profesor-2 button {
+    border: 1px solid black !important;
+}
+@media (max-width: 768px) {
+    .main {
+        flex-direction: column;
+        height: auto;
+        width: 80%;
+    }
+    .line {
+        flex: 0 0 1px;
+        width: 100%;
+        margin: 10px 0;
+    }
+    .profesor-2 input {
+        justify-self: center;
+        margin: auto;
+    }
+    .input-label {
+        justify-self: center;
+        margin: auto;
+    }
+    .profesor{
+        margin: 0;
+        margin-top: 0px !important;
+    }
+    #mainLogo {
+        height: auto !important;
+        width: 60% !important;
+    }
+}

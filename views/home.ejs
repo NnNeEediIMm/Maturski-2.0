@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="homeTitle">Kwizup - Home</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="/style1.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.png">
+</head>
+<body>
+    <nav class="language-switcher" aria-label="Choose language" data-i18n-aria-label="chooseLanguage">
+        <button type="button" data-language="bs" aria-label="Bosanski" aria-pressed="false">
+            <img src="/bosnia.jpg" alt=""> BS
+        </button>
+        <button type="button" data-language="en" aria-label="English" aria-pressed="false">
+            <img src="/uk.jpg" alt=""> EN
+        </button>
+    </nav>
+    <img id="mainLogo" src="/logo.png" alt="Kwizup logo" class="logo">
+
+    <main class="main">
+        <section class="profesor" id="createRoom">
+            <h4 data-i18n="createRoom">Create a room</h4>
+            <form class="profesor-2" action="/create-room" method="post">
+                <label class="input-label" for="professorName" data-i18n="yourName">Your name:</label>
+                <input id="professorName" name="name" type="text" placeholder="Enter your name" data-i18n-placeholder="enterName" maxlength="40" required>
+                <button type="submit" class="btn btn-primary" data-i18n="createRoomButton">Create room</button>
+            </form>
+        </section>
+
+        <div class="line" aria-hidden="true"></div>
+
+        <section class="others">
+            <h4 data-i18n="forStudents">For students</h4>
+            <form class="profesor-2" action="/join/student" method="post">
+                <label class="input-label" for="studentName" data-i18n="yourName">Your name:</label>
+                <input id="studentName" name="name" type="text" placeholder="Enter your name" data-i18n-placeholder="enterName" maxlength="40" required>
+
+                <label class="input-label" for="studentRoomId" data-i18n="roomCode">Room code:</label>
+                <input id="studentRoomId" name="roomId" type="text" placeholder="Room code" data-i18n-placeholder="roomCodePlaceholder" maxlength="6" required>
+                <button type="submit" class="btn btn-primary" data-i18n="joinRoom">Join room</button>
+            </form>
+        </section>
+    </main>
+    <script src="/language.js"></script>
+</body>
+</html>

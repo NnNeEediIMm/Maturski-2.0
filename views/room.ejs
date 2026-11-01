@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="roomPageTitle" data-i18n-room-id="<%= roomId %>">Kwizup - Room <%= roomId %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="/style1.css">
+    <link rel="stylesheet" href="/styleRoom.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.png">
+</head>
+<body>
+    <nav class="language-switcher" aria-label="Choose language" data-i18n-aria-label="chooseLanguage">
+        <button type="button" data-language="bs" aria-label="Bosanski" aria-pressed="false">
+            <img src="/bosnia.jpg" alt=""> BS
+        </button>
+        <button type="button" data-language="en" aria-label="English" aria-pressed="false">
+            <img src="/uk.jpg" alt=""> EN
+        </button>
+    </nav>
+    <header class="room-header">
+        <% if (role === "student") { %>
+            <a href="/home" aria-label="Kwizup home" data-i18n-aria-label="homeLink"><img id="mainLogo" src="/logo.png" alt="Kwizup logo"></a>
+        <% } else { %>
+            <img id="mainLogo" src="/logo.png" alt="Kwizup logo">
+        <% } %>
+        <div class="room-meta">
+            <span><span data-i18n="room">Room</span> <strong id="roomCode"><%= roomId %></strong></span>
+            <span><span data-i18n="signedInAs">Signed in as</span> <strong><%= name %></strong> (<span data-i18n="<%= role === 'student' ? 'studentRole' : 'professorRole' %>"><%= role %></span>)</span>
+            <div class="room-actions">
+                <% if (role === "student") { %>
+                    <form action="/leave-room" method="post">
+                        <button type="submit" class="btn btn-secondary" data-i18n="leaveLobby">Leave to lobby</button>
+                    </form>
+                <% } %>
+                <% if (isCreator) { %>
+                    <form action="/delete-room/<%= roomId %>" method="post" onsubmit="return confirm(window.translate('confirmDelete'))">
+                        <button type="submit" class="btn btn-danger" data-i18n="closeLobby">Close lobby &amp; delete data</button>
+                    </form>
+                <% } %>
+            </div>
+        </div>
+    </header>
+
+    <main class="room-layout">
+        <section class="room-card quiz-card">
+            <div class="section-heading">
+                <div>
+                    <h1 data-i18n="quizRoom">Quiz room</h1>
+                    <p id="quizStatus" class="muted" data-i18n="connecting">Connecting to room…</p>
+                </div>
+                <% if (isCreator) { %>
+                    <div class="creator-actions">
+                        <label for="timeLimitSeconds" data-i18n="timePerQuestion">Time per question</label>
+                        <select id="timeLimitSeconds" class="form-select">
+                            <option value="10" data-i18n="seconds" data-i18n-count="10">10 seconds</option>
+                            <option value="15" data-i18n="seconds" data-i18n-count="15">15 seconds</option>
+                            <option value="20" data-i18n="seconds" data-i18n-count="20">20 seconds</option>
+                            <option value="30" selected data-i18n="seconds" data-i18n-count="30">30 seconds</option>
+                            <option value="45" data-i18n="seconds" data-i18n-count="45">45 seconds</option>
+                            <option value="60" data-i18n="seconds" data-i18n-count="60">60 seconds</option>
+                            <option value="90" data-i18n="seconds" data-i18n-count="90">90 seconds</option>
+                            <option value="120" data-i18n="seconds" data-i18n-count="120">120 seconds</option>
+                        </select>
+                        <label class="auto-switch-control" for="autoSwitchQuestions">
+                            <input id="autoSwitchQuestions" type="checkbox" checked>
+                            <span data-i18n="autoSwitch">Automatically switch questions</span>
+                        </label>
+                        <label class="auto-switch-control" for="randomizeQuestions">
+                            <input id="randomizeQuestions" type="checkbox" checked>
+                            <span data-i18n="randomize">Randomize question order</span>
+                        </label>
+                        <button id="startQuiz" type="button" class="btn btn-primary" data-i18n="startQuiz">Start quiz</button>
+                        <button id="nextQuestion" type="button" class="btn btn-success" data-i18n="endRound" hidden>End round &amp; show scoreboard</button>
+                    </div>
+                <% } %>
+            </div>
+            <p id="questionTimer" class="question-timer" aria-live="polite" hidden></p>
+
+            <div id="studentQuestion" hidden>
+                <h2 id="questionPrompt"></h2>
+                <div id="answerOptions" class="answer-options"></div>
+                <p id="answerFeedback" role="status" aria-live="polite"></p>
+            </div>
+            <div id="professorQuestion" hidden>
+                <h2 id="liveQuestionPrompt"></h2>
+                <p id="answerProgress" class="muted"></p>
+            </div>
+            <section id="intermissionMessage" class="intermission-message" hidden aria-live="polite">
+                <h2 data-i18n="roundComplete">Round complete — scoreboard</h2>
+                <p id="intermissionCopy"></p>
+                <ol id="roundScoreboard" class="scoreboard round-scoreboard"></ol>
+            </section>
+            <div id="waitingMessage" class="waiting-message" data-i18n="waitingForCreator">Waiting for the room creator to start the quiz.</div>
+            <div id="finishedMessage" class="finished-message" hidden>
+                <h2 data-i18n="quizComplete">Quiz complete!</h2>
+                <p id="finishedCopy" data-i18n="finalScoresSaved">Final scores are saved.</p>
+                <a class="btn btn-primary" href="/home" data-i18n="returnToLobby">Return to lobby</a>
+            </div>
+        </section>
+
+        <section id="questionEditor" class="room-card" hidden>
+            <h2 data-i18n="addQuestion">Add a question</h2>
+            <form id="questionForm">
+                <label for="questionPromptInput" data-i18n="question">Question</label>
+                <textarea id="questionPromptInput" name="prompt" maxlength="500" required></textarea>
+                <fieldset class="option-fields">
+                    <legend data-i18n="answerOptionsLegend">Answer options (choose the correct one)</legend>
+                    <div id="answerOptionFields"></div>
+                    <button id="addAnswerOption" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="addAnswerOption">Add answer option</button>
+                    <p class="muted" data-i18n="chooseTwoToSix">Choose 2–6 options and select the correct answer.</p>
+                </fieldset>
+                <button type="submit" class="btn btn-primary" data-i18n="addQuestionButton">Add question</button>
+            </form>
+            <button id="openQuestionImport" type="button" class="btn btn-outline-primary question-import-trigger" data-i18n="importQuestions">Import questions</button>
+            <p id="questionMessage" role="status" aria-live="polite"></p>
+            <h3><span data-i18n="questionsInRoom">Questions in this room</span> (<span id="questionCount">0</span>)</h3>
+            <ol id="questionList" class="question-list"></ol>
+        </section>
+
+        <section class="room-card">
+            <h2 data-i18n="scoreboard">Scoreboard</h2>
+            <ol id="scoreboard" class="scoreboard"></ol>
+        </section>
+
+        <section class="room-card">
+            <h2 data-i18n="peopleInRoom">People in the room</h2>
+            <ul id="participantList" class="participant-list"></ul>
+        </section>
+    </main>
+
+    <dialog id="winnerDialog" class="winner-dialog" aria-labelledby="winnerTitle">
+        <div class="winner-dialog-content">
+            <h2 id="winnerTitle" data-i18n="quizComplete">Quiz complete!</h2>
+            <p id="winnerAnnouncement"></p>
+            <ol id="finalScoreboard" class="scoreboard"></ol>
+            <a class="btn btn-primary" href="/home" data-i18n="returnToLobby">Return to lobby</a>
+        </div>
+    </dialog>
+
+    <dialog id="questionImportDialog" class="question-import-dialog" aria-labelledby="questionImportTitle">
+        <form id="questionImportForm" class="question-import-content">
+            <h2 id="questionImportTitle" data-i18n="importQuestionsTitle">Import questions</h2>
+            <p data-i18n="importQuestionsInstructions">Paste one question per line, using | between the question and its answers.</p>
+            <pre class="question-import-example">Question|Answer 1|Answer 2|Answer 3</pre>
+            <p class="muted" data-i18n="firstAnswerCorrect">Each line needs 2–6 answers. The first answer will be marked as correct.</p>
+            <label for="questionImportText" data-i18n="pasteQuestions">Questions</label>
+            <textarea id="questionImportText" maxlength="50000" required></textarea>
+            <p id="questionImportStatus" role="status" aria-live="polite"></p>
+            <div class="question-import-actions">
+                <button id="cancelQuestionImport" type="button" class="btn btn-secondary" data-i18n="cancel">Cancel</button>
+                <button id="submitQuestionImport" type="submit" class="btn btn-primary" data-i18n="importQuestions">Import questions</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="/language.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const CURRENT_ROLE = "<%= role %>";
+        const IS_CREATOR = <%= isCreator ? "true" : "false" %>;
+        const socket = io();
+        let redirectTimer;
+        let timerInterval;
+        let serverClockOffset = 0;
+        let latestRoomState = null;
+        let latestAnswerResult = null;
+        const t = window.translate;
+
+        const byId = (id) => document.getElementById(id);
+        const status = byId("quizStatus");
+
+        function showError(element, message) {
+            if (element) element.textContent = window.translateServerError(message);
+        }
+
+        function sendAction(eventName, payload, feedbackElement, onSuccess, onFailure) {
+            socket.emit(eventName, payload, (response) => {
+                if (!response || !response.ok) {
+                    showError(feedbackElement, response?.error || t("couldNotComplete"));
+                    if (onFailure) onFailure();
+                }
+                if (response?.ok && onSuccess) onSuccess();
+            });
+        }
+
+        function renderQuestionList(questions) {
+            const list = byId("questionList");
+            list.replaceChildren();
+            questions.forEach((question) => {
+                const item = document.createElement("li");
+                item.textContent = t("addedBy", { prompt: question.prompt, author: question.author });
+                list.append(item);
+            });
+        }
+
+        function renderParticipants(participants, quizStarted) {
+            const list = byId("participantList");
+            list.replaceChildren();
+            participants.forEach((person) => {
+                const item = document.createElement("li");
+                const details = document.createElement("span");
+                const answerStatus = quizStarted && person.role === "student"
+                    ? person.hasAnsweredCurrentQuestion ? t("answered") : t("waiting")
+                    : "";
+                const role = t(person.role === "student" ? "studentRole" : "professorRole");
+                details.textContent = `${person.name} — ${role}${person.isCreator ? t("creatorSuffix") : ""}${answerStatus}`;
+                item.append(details);
+                if (IS_CREATOR && !person.isCreator) {
+                    const kickButton = document.createElement("button");
+                    kickButton.type = "button";
+                    kickButton.className = "btn btn-sm btn-outline-danger";
+                    kickButton.textContent = t("remove");
+                    kickButton.addEventListener("click", () => {
+                        sendAction("participant:kick", { participantId: person.participantId }, status);
+                    });
+                    item.append(kickButton);
+                }
+                list.append(item);
+            });
+        }
+
+        function renderScoreboard(participants, listId = "scoreboard") {
+            const list = byId(listId);
+            list.replaceChildren();
+            const students = [...participants]
+                .filter((person) => person.role === "student")
+                .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name));
+            students.forEach((person, index) => {
+                const item = document.createElement("li");
+                item.className = `scoreboard-row${index < 3 ? ` scoreboard-place-${index + 1}` : ""}`;
+                const place = document.createElement("span");
+                place.className = "score-place";
+                const placeKey = ["first", "second", "third"][index] || "ordinal";
+                place.textContent = t(placeKey, { number: index + 1 });
+                const name = document.createElement("strong");
+                name.textContent = person.name;
+                const score = document.createElement("span");
+                score.textContent = formatPoints(person.score);
+                item.append(place, name, score);
+                list.append(item);
+            });
+            if (students.length === 0) {
+                const empty = document.createElement("li");
+                empty.textContent = t("emptyScores");
+                list.append(empty);
+            }
+        }
+
+        function renderTimer(deadlineAt, label) {
+            const timer = byId("questionTimer");
+            if (timerInterval) clearInterval(timerInterval);
+            if (!deadlineAt) {
+                timer.hidden = true;
+                return;
+            }
+            timer.hidden = false;
+            const update = () => {
+                const serverNow = Date.now() + serverClockOffset;
+                const secondsLeft = Math.max(0, Math.ceil((deadlineAt - serverNow) / 1000));
+                const minutes = Math.floor(secondsLeft / 60);
+                const seconds = String(secondsLeft % 60).padStart(2, "0");
+                timer.textContent = `${label}: ${minutes}:${seconds}`;
+                timer.classList.toggle("timer-warning", secondsLeft <= 10);
+            };
+            update();
+            timerInterval = setInterval(update, 250);
+        }
+
+        function formatPoints(points) {
+            if (window.getCurrentLanguage() === "bs") {
+                const lastTwo = points % 100;
+                const lastDigit = points % 10;
+                const label = lastTwo >= 11 && lastTwo <= 14
+                    ? t("pointsBosnianMany")
+                    : lastDigit === 1
+                        ? t("pointsBosnianOne")
+                        : lastDigit >= 2 && lastDigit <= 4
+                            ? t("pointsBosnianFew")
+                            : t("pointsBosnianMany");
+                return `${points} ${label}`;
+            }
+            return `${points} ${t(points === 1 ? "point" : "points")}`;
+        }
+
+        function renderStudentQuestion(question) {
+            const panel = byId("studentQuestion");
+            const options = byId("answerOptions");
+            options.replaceChildren();
+            if (!question.answered) {
+                latestAnswerResult = null;
+                byId("answerFeedback").textContent = "";
+                byId("answerFeedback").className = "";
+            }
+            byId("questionPrompt").textContent = question.prompt;
+            question.options.forEach((option, index) => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "btn btn-outline-primary answer-option";
+                button.textContent = option;
+                button.disabled = question.answered;
+                button.addEventListener("click", () => {
+                    options.querySelectorAll("button").forEach((answerButton) => {
+                        answerButton.disabled = true;
+                    });
+                    sendAction("answer:submit", {
+                        questionId: question.questionId,
+                        selectedOption: index
+                    }, byId("answerFeedback"), () => {
+                        options.querySelectorAll("button").forEach((answerButton) => {
+                            answerButton.disabled = true;
+                        });
+                    }, () => {
+                        options.querySelectorAll("button").forEach((answerButton) => {
+                            answerButton.disabled = false;
+                        });
+                    });
+                });
+                options.append(button);
+            });
+            panel.hidden = false;
+        }
+
+        function renderState(state) {
+            latestRoomState = state;
+            if (Number.isFinite(state.serverNow)) {
+                serverClockOffset = state.serverNow - Date.now();
+            }
+            byId("questionCount").textContent = state.questionCount;
+            renderQuestionList(state.questionAuthors);
+            renderParticipants(state.participants, state.quiz.started);
+            renderScoreboard(state.participants);
+
+            if (CURRENT_ROLE === "professor") {
+                byId("questionEditor").hidden = state.quiz.started;
+            }
+            if (IS_CREATOR) {
+                byId("startQuiz").hidden = state.quiz.started;
+                byId("nextQuestion").hidden = !state.quiz.started || state.quiz.phase === "finished";
+                byId("timeLimitSeconds").disabled = state.quiz.started;
+                byId("autoSwitchQuestions").disabled = state.quiz.started;
+                byId("randomizeQuestions").disabled = state.quiz.started;
+            }
+
+            byId("studentQuestion").hidden = true;
+            byId("professorQuestion").hidden = true;
+            byId("intermissionMessage").hidden = !state.quiz.started || state.quiz.phase !== "intermission";
+            byId("waitingMessage").hidden = state.quiz.started || state.quiz.finished;
+            byId("finishedMessage").hidden = !state.quiz.finished;
+            const timerDeadline = state.quiz.phase === "intermission"
+                ? state.quiz.intermissionDeadlineAt
+                : state.quiz.questionDeadlineAt;
+            renderTimer(
+                state.quiz.started ? timerDeadline : null,
+                state.quiz.phase === "intermission" ? t("scoreboardBreak") : t("timeRemaining")
+            );
+
+            if (state.quiz.finished) {
+                status.textContent = t("quizCompleteStatus");
+                byId("finishedCopy").textContent = CURRENT_ROLE === "student"
+                    ? t("finalScoreStudent")
+                    : t("finalScoreProfessor");
+                if (CURRENT_ROLE === "student" && !redirectTimer) {
+                    redirectTimer = setTimeout(() => { window.location.assign("/home"); }, 10000);
+                }
+                showWinnerDialog(state.participants);
+                return;
+            }
+            if (byId("winnerDialog").open) byId("winnerDialog").close();
+            if (!state.quiz.started) {
+                status.textContent = t("questionsReady", {
+                    count: state.questionCount,
+                    suffix: state.questionCount === 1 ? "" : "s"
+                });
+                return;
+            }
+
+            if (state.quiz.phase === "intermission") {
+                const secondsLeft = state.quiz.intermissionDeadlineAt
+                    ? Math.max(0, Math.ceil((state.quiz.intermissionDeadlineAt - (Date.now() + serverClockOffset)) / 1000))
+                    : 0;
+                status.textContent = `${t("scoreboardBreak")}${secondsLeft ? t("nextRoundIn", { seconds: secondsLeft }) : ""}`;
+                byId("intermissionCopy").textContent = state.quiz.questionNumber === state.quiz.questionCount
+                    ? t("lastQuestion")
+                    : state.quiz.autoSwitch
+                        ? t("automaticNext")
+                        : IS_CREATOR
+                            ? t("creatorNext")
+                            : t("professorNext");
+                renderScoreboard(state.participants, "roundScoreboard");
+                if (IS_CREATOR) {
+                    byId("nextQuestion").textContent = state.quiz.questionNumber === state.quiz.questionCount
+                        ? t("finishQuiz")
+                        : t("startNextQuestion");
+                    byId("nextQuestion").disabled = Boolean(state.quiz.intermissionDeadlineAt);
+                }
+                return;
+            }
+
+            status.textContent = t("questionProgress", {
+                number: state.quiz.questionNumber,
+                count: state.quiz.questionCount
+            });
+            const question = state.quiz.currentQuestion;
+            if (!question) return;
+            if (IS_CREATOR) {
+                byId("nextQuestion").textContent = t("endRound");
+                byId("nextQuestion").disabled = false;
+            }
+            if (CURRENT_ROLE === "student") {
+                renderStudentQuestion(question);
+            } else {
+                byId("liveQuestionPrompt").textContent = question.prompt;
+                byId("answerProgress").textContent = t("studentsAnswered", {
+                    answered: question.answersReceived,
+                    total: state.participants.filter((person) => person.role === "student").length
+                });
+                byId("professorQuestion").hidden = false;
+            }
+
+            function showWinnerDialog(participants) {
+                const students = participants
+                    .filter((person) => person.role === "student")
+                    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name));
+                const dialog = byId("winnerDialog");
+                const topScore = students[0]?.score;
+                const winners = students.filter((person) => person.score === topScore);
+                byId("winnerAnnouncement").textContent = winners.length
+                    ? winners.length === 1
+                        ? t("winner", {
+                            name: winners[0].name,
+                            score: formatPoints(topScore)
+                        })
+                        : t("tie", {
+                            names: winners.map((person) => person.name).join(" and "),
+                            score: formatPoints(topScore)
+                        })
+                    : t("noStudents");
+                renderScoreboard(students, "finalScoreboard");
+                if (!dialog.open) dialog.showModal();
+            }
+        }
+
+        window.addEventListener("languagechange", () => {
+            if (latestRoomState) renderState(latestRoomState);
+            else status.textContent = t("connecting");
+            if (latestAnswerResult) renderAnswerResult(latestAnswerResult);
+        });
+        socket.on("connect", () => { status.textContent = t("connected"); });
+        socket.on("connect_error", (error) => { status.textContent = window.translateServerError(error.message); });
+        socket.on("room:state", renderState);
+        socket.on("answer:result", (result) => {
+            latestAnswerResult = result;
+            renderAnswerResult(result);
+        });
+
+        function renderAnswerResult(result) {
+            byId("answerFeedback").textContent = result.isCorrect
+                ? t("correctAnswer", {
+                    score: formatPoints(result.pointsEarned)
+                })
+                : t("incorrectAnswer");
+            byId("answerFeedback").className = result.isCorrect ? "text-success" : "text-danger";
+        }
+        socket.on("participant:kicked", () => { window.location.assign("/home"); });
+        socket.on("room:deleted", () => { window.location.assign("/home"); });
+
+        if (IS_CREATOR) {
+            byId("startQuiz").addEventListener("click", () => sendAction(
+                "quiz:start",
+                {
+                    timeLimitSeconds: Number(byId("timeLimitSeconds").value),
+                    autoSwitch: byId("autoSwitchQuestions").checked,
+                    randomizeQuestions: byId("randomizeQuestions").checked
+                },
+                status
+            ));
+            byId("nextQuestion").addEventListener("click", () => sendAction("quiz:next", {}, status, null, () => {
+                byId("nextQuestion").disabled = false;
+            }));
+        }
+
+        const questionForm = byId("questionForm");
+        if (questionForm) {
+            const optionFields = byId("answerOptionFields");
+            const importDialog = byId("questionImportDialog");
+            const importForm = byId("questionImportForm");
+            const importText = byId("questionImportText");
+            const importStatus = byId("questionImportStatus");
+            let importInProgress = false;
+            let latestImportResult = null;
+
+            function renderImportStatus() {
+                if (!latestImportResult) return;
+                if (latestImportResult.type === "error") {
+                    importStatus.textContent = latestImportResult.message;
+                } else if (latestImportResult.type === "complete") {
+                    importStatus.textContent = latestImportResult.count === 1
+                        ? t("importCompleteOne")
+                        : t("importComplete", { count: latestImportResult.count });
+                } else if (latestImportResult.type === "partial") {
+                    importStatus.textContent = t("importPartial", {
+                        added: latestImportResult.added,
+                        total: latestImportResult.total,
+                        line: latestImportResult.line,
+                        error: latestImportResult.error
+                    });
+                } else if (latestImportResult.type === "progress") {
+                    importStatus.textContent = t("importProgress", {
+                        added: latestImportResult.added,
+                        total: latestImportResult.total
+                    });
+                }
+            }
+
+            function parseImportedQuestions(text) {
+                const questions = [];
+                text.split(/\r?\n/).forEach((rawLine, index) => {
+                    if (!rawLine.trim()) return;
+                    const fields = rawLine.split("|").map((field) => field.trim());
+                    const lineNumber = index + 1;
+                    if (fields.length < 3 || fields.length > 7) {
+                        throw new Error(t("importLineFormat", { line: lineNumber }));
+                    }
+                    const [prompt, ...options] = fields;
+                    if (!prompt || prompt.length > 500) {
+                        throw new Error(t("importLineQuestion", { line: lineNumber }));
+                    }
+                    if (options.some((option) => !option || option.length > 120)) {
+                        throw new Error(t("importLineAnswers", { line: lineNumber }));
+                    }
+                    questions.push({ prompt, options, correctOption: 0, lineNumber });
+                });
+                if (questions.length === 0) throw new Error(t("importEmpty"));
+                return questions;
+            }
+
+            async function addImportedQuestions(questions) {
+                let added = 0;
+                for (const question of questions) {
+                    const result = await new Promise((resolve) => {
+                        socket.timeout(10000).emit("question:add", {
+                            prompt: question.prompt,
+                            options: question.options,
+                            correctOption: question.correctOption
+                        }, (error, response) => resolve({ error, response }));
+                    });
+                    if (result.error || !result.response?.ok) {
+                        latestImportResult = {
+                            type: "partial",
+                            added,
+                            total: questions.length,
+                            line: question.lineNumber,
+                            error: window.translateServerError(
+                                result.error ? t("importTimedOut") : result.response?.error || t("couldNotComplete")
+                            )
+                        };
+                        renderImportStatus();
+                        return;
+                    }
+                    added += 1;
+                    latestImportResult = { type: "progress", added, total: questions.length };
+                    renderImportStatus();
+                }
+                latestImportResult = { type: "complete", count: added };
+                renderImportStatus();
+                importText.value = "";
+            }
+
+            byId("openQuestionImport").addEventListener("click", () => {
+                latestImportResult = null;
+                importStatus.textContent = "";
+                importDialog.showModal();
+                importText.focus();
+            });
+            byId("cancelQuestionImport").addEventListener("click", () => importDialog.close());
+            importDialog.addEventListener("cancel", (event) => {
+                if (importInProgress) event.preventDefault();
+            });
+            window.addEventListener("languagechange", renderImportStatus);
+            importForm.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                if (importInProgress) return;
+                let questions;
+                try {
+                    questions = parseImportedQuestions(importText.value);
+                } catch (error) {
+                    latestImportResult = { type: "error", message: error.message };
+                    renderImportStatus();
+                    return;
+                }
+                importInProgress = true;
+                byId("submitQuestionImport").disabled = true;
+                byId("cancelQuestionImport").disabled = true;
+                try {
+                    await addImportedQuestions(questions);
+                } finally {
+                    importInProgress = false;
+                    byId("submitQuestionImport").disabled = false;
+                    byId("cancelQuestionImport").disabled = false;
+                }
+            });
+
+            function renderAnswerOptions(values, correctOption = 0) {
+                optionFields.replaceChildren();
+                values.forEach((value, index) => {
+                    const row = document.createElement("div");
+                    row.className = "option-input";
+
+                    const correctRadio = document.createElement("input");
+                    correctRadio.type = "radio";
+                    correctRadio.name = "correctOption";
+                    correctRadio.value = index;
+                    correctRadio.required = true;
+                    correctRadio.checked = index === correctOption;
+                    correctRadio.setAttribute("aria-label", t("correctOption", { number: index + 1 }));
+
+                    const optionInput = document.createElement("input");
+                    optionInput.type = "text";
+                    optionInput.name = "option";
+                    optionInput.maxLength = 120;
+                    optionInput.placeholder = t("optionPlaceholder", { number: index + 1 });
+                    optionInput.setAttribute("aria-label", t("answerOption", { number: index + 1 }));
+                    optionInput.required = true;
+                    optionInput.value = value;
+
+                    row.append(correctRadio, optionInput);
+                    if (values.length > 2) {
+                        const removeButton = document.createElement("button");
+                        removeButton.type = "button";
+                        removeButton.className = "btn btn-outline-danger btn-sm";
+                        removeButton.textContent = t("remove");
+                        removeButton.setAttribute("aria-label", t("removeOption", { number: index + 1 }));
+                        removeButton.addEventListener("click", () => {
+                            const remainingValues = values.filter((_, optionIndex) => optionIndex !== index);
+                            const nextCorrectOption = correctOption > index
+                                ? correctOption - 1
+                                : Math.min(correctOption, remainingValues.length - 1);
+                            renderAnswerOptions(remainingValues, nextCorrectOption);
+                        });
+                        row.append(removeButton);
+                    }
+                    optionFields.append(row);
+                });
+                byId("addAnswerOption").disabled = values.length >= 6;
+            }
+
+            renderAnswerOptions(["", ""]);
+            window.addEventListener("languagechange", () => {
+                const values = [...optionFields.querySelectorAll('input[name="option"]')]
+                    .map((input) => input.value);
+                const selected = optionFields.querySelector('input[name="correctOption"]:checked');
+                renderAnswerOptions(values, selected ? Number(selected.value) : 0);
+            });
+            byId("addAnswerOption").addEventListener("click", () => {
+                const values = [...optionFields.querySelectorAll('input[name="option"]')]
+                    .map((input) => input.value);
+                const selected = optionFields.querySelector('input[name="correctOption"]:checked');
+                if (values.length < 6) {
+                    values.push("");
+                    renderAnswerOptions(values, selected ? Number(selected.value) : 0);
+                }
+            });
+
+            questionForm.addEventListener("submit", (event) => {
+                event.preventDefault();
+                const formData = new FormData(questionForm);
+                sendAction("question:add", {
+                    prompt: formData.get("prompt"),
+                    options: formData.getAll("option"),
+                    correctOption: formData.get("correctOption"),
+                }, byId("questionMessage"), () => {
+                    questionForm.reset();
+                    renderAnswerOptions(["", ""]);
+                    showError(byId("questionMessage"), t("questionAdded"));
+                });
+            });
+        }
+    </script>
+</body>
+</html>
