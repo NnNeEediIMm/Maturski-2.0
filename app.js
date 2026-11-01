@@ -369,7 +369,7 @@ app.post("/join/student", async (req, res) => {
 
   try {
     const room = await Room.findOne({ roomId });
-    if (!room) return res.status(404).send("Room not found.");
+    if (!room) return res.status(404).render("error");
     const participant = {
       participantId: crypto.randomUUID(),
       name,
@@ -390,7 +390,7 @@ app.get("/room/:roomId", roomPageAuth, async (req, res) => {
     const room = await Room.findOne({ roomId: req.params.roomId });
     if (!room) {
       clearAuthCookie(res);
-      return res.status(404).send("Room not found.");
+      return res.status(404).render("error");
     }
     const participant = room.participants.find(
       (item) => item.participantId === req.roomAuth.participantId
@@ -630,7 +630,7 @@ io.on("connection", (socket) => {
   });
 });
 
-app.use((req, res) => res.status(404).send("Page not found."));
+app.use((req, res) => res.status(404).render("error"));
 
 function makeid(length) {
   const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -661,6 +661,7 @@ mongoose
       }
     }).catch((error) => console.error("Could not restore question timers:", error.message));
     server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+    
   })
   .catch((error) => {
     console.error("MongoDB connection error:", error.message);

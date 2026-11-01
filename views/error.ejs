@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="notFoundTitle">404 - Not Found</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="/style1.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.png">
+</head>
+<body>
+    <nav class="language-switcher" aria-label="Choose language" data-i18n-aria-label="chooseLanguage">
+        <button type="button" data-language="bs" aria-label="Bosanski" aria-pressed="false">
+            <img src="/bosnia.jpg" alt=""> BS
+        </button>
+        <button type="button" data-language="en" aria-label="English" aria-pressed="false">
+            <img src="/uk.jpg" alt=""> EN
+        </button>
+    </nav>
+    <img id="mainLogo" src="/logo.png" alt="Kwizup logo" class="logo">
+
+    <main class="main error-page">
+        <section>
+            <h1 data-i18n="notFoundTitle">404 - Not Found</h1>
+            <p data-i18n="notFoundMessage">The page you are looking for could not be found.</p>
+            <a href="/home" class="btn btn-primary" data-i18n="returnToLobby">Return to lobby</a>
+        </section>
+    </main>
+    <script src="/language.js"></script>
+</body>
+</html>

@@ -12,16 +12,13 @@ body {
 }
 
 .language-switcher {
-    position: fixed;
-    top: 14px;
-    right: 14px;
-    z-index: 10;
     display: flex;
     gap: 6px;
     padding: 6px;
     border: 1px solid rgba(0, 0, 0, 0.3);
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.9);
+    margin-bottom: 12px;
 }
 
 .language-switcher button {
@@ -72,6 +69,15 @@ body {
     border: 2px solid black;
     border-radius: 20px;
 }
+.error-page {
+    align-items: center;
+    text-align: center;
+}
+
+.error-page p {
+    margin: 16px 0;
+}
+
 .input-label {
     margin-top: 10px;
     text-align: start !important;

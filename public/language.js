@@ -2,6 +2,8 @@
     const translations = {
         en: {
             homeTitle: "Kwizup - Home",
+            notFoundTitle: "404 - Not Found",
+            notFoundMessage: "The page you are looking for could not be found.",
             roomPageTitle: "Kwizup - Room {roomId}",
             createRoom: "Create a room",
             yourName: "Your name:",
@@ -128,6 +130,8 @@
         },
         bs: {
             homeTitle: "Kwizup - Početna",
+            notFoundTitle: "404 - Stranica nije pronađena",
+            notFoundMessage: "Stranica koju tražite nije pronađena.",
             roomPageTitle: "Kwizup - Soba {roomId}",
             createRoom: "Kreiraj sobu",
             yourName: "Vaše ime:",
