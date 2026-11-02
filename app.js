@@ -162,7 +162,10 @@ function serializeRoomState(room, auth) {
     questionCount: room.questions.length,
     questionAuthors: auth.role === "professor"
       ? room.questions.map((item) => ({
+          questionId: item.questionId,
           prompt: item.prompt,
+          options: item.options,
+          correctOption: item.correctOption,
           author: room.participants.find((participant) => participant.participantId === item.createdBy)?.name || "Professor",
         }))
       : [],
@@ -506,6 +509,19 @@ io.on("connection", (socket) => {
       correctOption,
       createdBy: participant.participantId,
     });
+    await room.save();
+    emitRoomState(room);
+  });
+
+  registerSocketAction(socket, "question:remove", async ({ room, participant, payload }) => {
+    if (participant.role !== "professor") throw new Error("Only professors can remove questions.");
+    if (room.quiz.started && !room.quiz.finished) throw new Error("Questions are locked during a quiz.");
+
+    const questionId = typeof payload.questionId === "string" ? payload.questionId : "";
+    const questionIndex = room.questions.findIndex((question) => question.questionId === questionId);
+    if (!questionId || questionIndex === -1) throw new Error("Question not found.");
+
+    room.questions.splice(questionIndex, 1);
     await room.save();
     emitRoomState(room);
   });

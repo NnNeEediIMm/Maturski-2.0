@@ -246,12 +246,10 @@ body {
     background: #eef4fa;
 }
 
-#questionImportText {
-    min-height: 220px;
+#questionImportFile {
     padding: 10px;
     border: 1px solid #777;
     border-radius: 8px;
-    font-family: monospace;
 }
 
 .question-import-actions {

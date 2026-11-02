@@ -113,6 +113,7 @@
                 <button type="submit" class="btn btn-primary" data-i18n="addQuestionButton">Add question</button>
             </form>
             <button id="openQuestionImport" type="button" class="btn btn-outline-primary question-import-trigger" data-i18n="importQuestions">Import questions</button>
+            <button id="exportQuestions" type="button" class="btn btn-outline-secondary question-import-trigger" data-i18n="exportQuestions" disabled>Download questions.txt</button>
             <p id="questionMessage" role="status" aria-live="polite"></p>
             <h3><span data-i18n="questionsInRoom">Questions in this room</span> (<span id="questionCount">0</span>)</h3>
             <ol id="questionList" class="question-list"></ol>
@@ -141,11 +142,11 @@
     <dialog id="questionImportDialog" class="question-import-dialog" aria-labelledby="questionImportTitle">
         <form id="questionImportForm" class="question-import-content">
             <h2 id="questionImportTitle" data-i18n="importQuestionsTitle">Import questions</h2>
-            <p data-i18n="importQuestionsInstructions">Paste one question per line, using | between the question and its answers.</p>
-            <pre class="question-import-example">Question|Answer 1|Answer 2|Answer 3</pre>
-            <p class="muted" data-i18n="firstAnswerCorrect">Each line needs 2–6 answers. The first answer will be marked as correct.</p>
-            <label for="questionImportText" data-i18n="pasteQuestions">Questions</label>
-            <textarea id="questionImportText" maxlength="50000" required></textarea>
+            <p data-i18n="importQuestionsInstructions">Choose a TXT file with one question per line.</p>
+            <pre class="question-import-example">Question|Right answer number|Answer 1|Answer 2|...</pre>
+            <p class="muted" data-i18n="firstAnswerCorrect">Each line needs 2–6 answers. The right answer number starts at 1.</p>
+            <label for="questionImportFile" data-i18n="chooseQuestionFile">TXT file</label>
+            <input id="questionImportFile" type="file" accept=".txt,text/plain" required>
             <p id="questionImportStatus" role="status" aria-live="polite"></p>
             <div class="question-import-actions">
                 <button id="cancelQuestionImport" type="button" class="btn btn-secondary" data-i18n="cancel">Cancel</button>
@@ -160,15 +161,60 @@
         const CURRENT_ROLE = "<%= role %>";
         const IS_CREATOR = <%= isCreator ? "true" : "false" %>;
         const socket = io();
-        let redirectTimer;
         let timerInterval;
         let serverClockOffset = 0;
         let latestRoomState = null;
         let latestAnswerResult = null;
+        let selectedAnswerOption = null;
+        let displayedQuestionId = null;
+        let previousRoundPhase = null;
         const t = window.translate;
+        const sounds = {
+            correctAnswer: new Audio("/sounds/correct_answer_client.mp3"),
+            roundMusic: new Audio("/sounds/round_music_loop.mp3"),
+            endOfRound: new Audio("/sounds/end_of_round.mp3"),
+            wrongAnswer: new Audio("/sounds/wrong_answer_client.mp3"),
+            winnerMusic: new Audio("/sounds/winner_music.mp3")
+        };
+        sounds.roundMusic.loop = true;
+        sounds.winnerMusic.addEventListener("ended", () => window.location.assign("/home"));
 
         const byId = (id) => document.getElementById(id);
         const status = byId("quizStatus");
+
+        function playSound(audio) {
+            audio.pause();
+            audio.currentTime = 0;
+            try {
+                const playback = audio.play();
+                if (playback && typeof playback.catch === "function") {
+                    playback.catch((error) => console.warn("Could not play sound:", error.message));
+                }
+            } catch (error) {
+                console.warn("Could not play sound:", error.message);
+            }
+        }
+
+        function updateRoundAudio(state) {
+            if (CURRENT_ROLE !== "professor") return;
+
+            const previousPhase = previousRoundPhase;
+            previousRoundPhase = state.quiz.started ? state.quiz.phase : null;
+            const roundIsActive = state.quiz.started &&
+                !state.quiz.finished &&
+                state.quiz.phase !== "intermission";
+
+            if (roundIsActive) {
+                if (sounds.roundMusic.paused) playSound(sounds.roundMusic);
+            } else if (!sounds.roundMusic.paused) {
+                sounds.roundMusic.pause();
+                sounds.roundMusic.currentTime = 0;
+            }
+
+            if (state.quiz.started && state.quiz.phase === "intermission" && previousPhase === "question") {
+                playSound(sounds.endOfRound);
+            }
+        }
 
         function showError(element, message) {
             if (element) element.textContent = window.translateServerError(message);
@@ -184,12 +230,25 @@
             });
         }
 
-        function renderQuestionList(questions) {
+        function renderQuestionList(questions, canRemove) {
             const list = byId("questionList");
             list.replaceChildren();
             questions.forEach((question) => {
                 const item = document.createElement("li");
-                item.textContent = t("addedBy", { prompt: question.prompt, author: question.author });
+                const details = document.createElement("span");
+                details.textContent = t("addedBy", { prompt: question.prompt, author: question.author });
+                item.append(details);
+                if (canRemove) {
+                    const removeButton = document.createElement("button");
+                    removeButton.type = "button";
+                    removeButton.className = "btn btn-sm btn-outline-danger";
+                    removeButton.textContent = t("removeQuestion");
+                    removeButton.addEventListener("click", () => {
+                        if (!window.confirm(t("confirmRemoveQuestion"))) return;
+                        sendAction("question:remove", { questionId: question.questionId }, byId("questionMessage"));
+                    });
+                    item.append(removeButton);
+                }
                 list.append(item);
             });
         }
@@ -287,6 +346,11 @@
             const panel = byId("studentQuestion");
             const options = byId("answerOptions");
             options.replaceChildren();
+            if (displayedQuestionId !== question.questionId) {
+                displayedQuestionId = question.questionId;
+                latestAnswerResult = null;
+                selectedAnswerOption = null;
+            }
             if (!question.answered) {
                 latestAnswerResult = null;
                 byId("answerFeedback").textContent = "";
@@ -300,6 +364,7 @@
                 button.textContent = option;
                 button.disabled = question.answered;
                 button.addEventListener("click", () => {
+                    selectedAnswerOption = index;
                     options.querySelectorAll("button").forEach((answerButton) => {
                         answerButton.disabled = true;
                     });
@@ -314,20 +379,27 @@
                         options.querySelectorAll("button").forEach((answerButton) => {
                             answerButton.disabled = false;
                         });
+                        selectedAnswerOption = null;
                     });
                 });
                 options.append(button);
             });
             panel.hidden = false;
+            if (latestAnswerResult) renderAnswerResult(latestAnswerResult);
         }
 
         function renderState(state) {
+            updateRoundAudio(state);
             latestRoomState = state;
             if (Number.isFinite(state.serverNow)) {
                 serverClockOffset = state.serverNow - Date.now();
             }
             byId("questionCount").textContent = state.questionCount;
-            renderQuestionList(state.questionAuthors);
+            byId("exportQuestions").disabled = state.questionCount === 0;
+            renderQuestionList(
+                state.questionAuthors,
+                CURRENT_ROLE === "professor" && !state.quiz.started
+            );
             renderParticipants(state.participants, state.quiz.started);
             renderScoreboard(state.participants);
 
@@ -360,9 +432,6 @@
                 byId("finishedCopy").textContent = CURRENT_ROLE === "student"
                     ? t("finalScoreStudent")
                     : t("finalScoreProfessor");
-                if (CURRENT_ROLE === "student" && !redirectTimer) {
-                    redirectTimer = setTimeout(() => { window.location.assign("/home"); }, 10000);
-                }
                 showWinnerDialog(state.participants);
                 return;
             }
@@ -437,7 +506,12 @@
                         })
                     : t("noStudents");
                 renderScoreboard(students, "finalScoreboard");
-                if (!dialog.open) dialog.showModal();
+                if (!dialog.open) {
+                    dialog.showModal();
+                    sounds.endOfRound.pause();
+                    sounds.endOfRound.currentTime = 0;
+                    playSound(sounds.winnerMusic);
+                }
             }
         }
 
@@ -452,6 +526,7 @@
         socket.on("answer:result", (result) => {
             latestAnswerResult = result;
             renderAnswerResult(result);
+            playSound(result.isCorrect ? sounds.correctAnswer : sounds.wrongAnswer);
         });
 
         function renderAnswerResult(result) {
@@ -461,20 +536,29 @@
                 })
                 : t("incorrectAnswer");
             byId("answerFeedback").className = result.isCorrect ? "text-success" : "text-danger";
+            if (selectedAnswerOption !== null) {
+                const selectedButton = byId("answerOptions").querySelectorAll("button")[selectedAnswerOption];
+                if (selectedButton) {
+                    selectedButton.classList.remove("btn-outline-primary");
+                    selectedButton.classList.add(result.isCorrect ? "btn-success" : "btn-danger");
+                }
+            }
         }
         socket.on("participant:kicked", () => { window.location.assign("/home"); });
         socket.on("room:deleted", () => { window.location.assign("/home"); });
 
         if (IS_CREATOR) {
-            byId("startQuiz").addEventListener("click", () => sendAction(
-                "quiz:start",
-                {
-                    timeLimitSeconds: Number(byId("timeLimitSeconds").value),
-                    autoSwitch: byId("autoSwitchQuestions").checked,
-                    randomizeQuestions: byId("randomizeQuestions").checked
-                },
-                status
-            ));
+            byId("startQuiz").addEventListener("click", () => {
+                sendAction(
+                    "quiz:start",
+                    {
+                        timeLimitSeconds: Number(byId("timeLimitSeconds").value),
+                        autoSwitch: byId("autoSwitchQuestions").checked,
+                        randomizeQuestions: byId("randomizeQuestions").checked
+                    },
+                    status
+                );
+            });
             byId("nextQuestion").addEventListener("click", () => sendAction("quiz:next", {}, status, null, () => {
                 byId("nextQuestion").disabled = false;
             }));
@@ -485,7 +569,7 @@
             const optionFields = byId("answerOptionFields");
             const importDialog = byId("questionImportDialog");
             const importForm = byId("questionImportForm");
-            const importText = byId("questionImportText");
+            const importFile = byId("questionImportFile");
             const importStatus = byId("questionImportStatus");
             let importInProgress = false;
             let latestImportResult = null;
@@ -520,8 +604,7 @@
         const fields = rawLine.split("|").map((field) => field.trim());
         const lineNumber = index + 1;
         
-        // Minimum: prompt (1) + correctIndex (1) + options (at least 2) = 4 fields.
-        // Maximum: adjusted from 7 to 8 to support the same maximum number of options.
+        // Each line contains a prompt, a 1-based correct answer number, and 2–6 options.
         if (fields.length < 4 || fields.length > 8) {
             throw new Error(t("importLineFormat", { line: lineNumber }));
         }
@@ -532,9 +615,9 @@
             throw new Error(t("importLineQuestion", { line: lineNumber }));
         }
         
-        // Validate that the correct answer index is a number between 1 and options.length
-        const correctIndexNum = parseInt(correctIndexStr, 10);
-        if (isNaN(correctIndexNum) || correctIndexNum < 1 || correctIndexNum > options.length) {
+        // Convert the 1-based file value to the 0-based index used by the server.
+        const correctIndexNum = /^\d+$/.test(correctIndexStr) ? Number(correctIndexStr) : NaN;
+        if (!Number.isInteger(correctIndexNum) || correctIndexNum < 1 || correctIndexNum > options.length) {
             throw new Error(t("importLineCorrectIndex", { line: lineNumber }));
         }
         
@@ -584,14 +667,14 @@
                 }
                 latestImportResult = { type: "complete", count: added };
                 renderImportStatus();
-                importText.value = "";
+                importFile.value = "";
             }
 
             byId("openQuestionImport").addEventListener("click", () => {
                 latestImportResult = null;
                 importStatus.textContent = "";
                 importDialog.showModal();
-                importText.focus();
+                importFile.focus();
             });
             byId("cancelQuestionImport").addEventListener("click", () => importDialog.close());
             importDialog.addEventListener("cancel", (event) => {
@@ -603,7 +686,10 @@
                 if (importInProgress) return;
                 let questions;
                 try {
-                    questions = parseImportedQuestions(importText.value);
+                    const file = importFile.files[0];
+                    if (!file) throw new Error(t("importNoFile"));
+                    if (file.size > 50000) throw new Error(t("importFileTooLarge"));
+                    questions = parseImportedQuestions(await file.text());
                 } catch (error) {
                     latestImportResult = { type: "error", message: error.message };
                     renderImportStatus();
@@ -619,6 +705,22 @@
                     byId("submitQuestionImport").disabled = false;
                     byId("cancelQuestionImport").disabled = false;
                 }
+            });
+
+            byId("exportQuestions").addEventListener("click", () => {
+                const questions = latestRoomState?.questionAuthors || [];
+                const contents = questions.map((question) =>
+                    [question.prompt, question.correctOption + 1, ...question.options].join("|")
+                ).join("\n");
+                const file = new Blob([contents], { type: "text/plain;charset=utf-8" });
+                const url = URL.createObjectURL(file);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "questions.txt";
+                document.body.append(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 0);
             });
 
             function renderAnswerOptions(values, correctOption = 0) {
