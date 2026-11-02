@@ -513,27 +513,47 @@
                 }
             }
 
-            function parseImportedQuestions(text) {
-                const questions = [];
-                text.split(/\r?\n/).forEach((rawLine, index) => {
-                    if (!rawLine.trim()) return;
-                    const fields = rawLine.split("|").map((field) => field.trim());
-                    const lineNumber = index + 1;
-                    if (fields.length < 3 || fields.length > 7) {
-                        throw new Error(t("importLineFormat", { line: lineNumber }));
-                    }
-                    const [prompt, ...options] = fields;
-                    if (!prompt || prompt.length > 500) {
-                        throw new Error(t("importLineQuestion", { line: lineNumber }));
-                    }
-                    if (options.some((option) => !option || option.length > 120)) {
-                        throw new Error(t("importLineAnswers", { line: lineNumber }));
-                    }
-                    questions.push({ prompt, options, correctOption: 0, lineNumber });
-                });
-                if (questions.length === 0) throw new Error(t("importEmpty"));
-                return questions;
-            }
+    function parseImportedQuestions(text) {
+    const questions = [];
+    text.split(/\r?\n/).forEach((rawLine, index) => {
+        if (!rawLine.trim()) return;
+        const fields = rawLine.split("|").map((field) => field.trim());
+        const lineNumber = index + 1;
+        
+        // Minimum: prompt (1) + correctIndex (1) + options (at least 2) = 4 fields.
+        // Maximum: adjusted from 7 to 8 to support the same maximum number of options.
+        if (fields.length < 4 || fields.length > 8) {
+            throw new Error(t("importLineFormat", { line: lineNumber }));
+        }
+        
+        const [prompt, correctIndexStr, ...options] = fields;
+        
+        if (!prompt || prompt.length > 500) {
+            throw new Error(t("importLineQuestion", { line: lineNumber }));
+        }
+        
+        // Validate that the correct answer index is a number between 1 and options.length
+        const correctIndexNum = parseInt(correctIndexStr, 10);
+        if (isNaN(correctIndexNum) || correctIndexNum < 1 || correctIndexNum > options.length) {
+            throw new Error(t("importLineCorrectIndex", { line: lineNumber }));
+        }
+        
+        if (options.some((option) => !option || option.length > 120)) {
+            throw new Error(t("importLineAnswers", { line: lineNumber }));
+        }
+        
+        // Store correctOption as 0-indexed (converting from 1-based input format)
+        questions.push({ 
+            prompt, 
+            options, 
+            correctOption: correctIndexNum - 1, 
+            lineNumber 
+        });
+    });
+    if (questions.length === 0) throw new Error(t("importEmpty"));
+    return questions;
+}
+
 
             async function addImportedQuestions(questions) {
                 let added = 0;
